@@ -1,8 +1,9 @@
 # WeChat Desktop Message Sender (human-like typing)
 # Usage:
-#   Send text:   powershell -STA -NoProfile -ExecutionPolicy Bypass -File send_wechat.ps1 -Recipient "name" -Message "text"
-#   Send image:  powershell -STA -NoProfile -ExecutionPolicy Bypass -File send_wechat.ps1 -Recipient "name" -ImagePath "C:\path\to\image.jpg"
-#   Send file:   powershell -STA -NoProfile -ExecutionPolicy Bypass -File send_wechat.ps1 -Recipient "name" -FilePath "C:\path\to\file.txt"
+#   Send text:       powershell -STA -NoProfile -ExecutionPolicy Bypass -File send_wechat.ps1 -Recipient "name" -Message "text"
+#   Send text (nth): powershell -STA -NoProfile -ExecutionPolicy Bypass -File send_wechat.ps1 -Recipient "name" -Message "text" -ResultIndex 2
+#   Send image:      powershell -STA -NoProfile -ExecutionPolicy Bypass -File send_wechat.ps1 -Recipient "name" -ImagePath "C:\path\to\image.jpg"
+#   Send file:       powershell -STA -NoProfile -ExecutionPolicy Bypass -File send_wechat.ps1 -Recipient "name" -FilePath "C:\path\to\file.txt"
 
 param(
     [Parameter(Mandatory=$true)]
@@ -21,7 +22,10 @@ param(
     [int]$ChatIconOffsetX = 28,
 
     [Parameter(Mandatory=$false)]
-    [int]$ChatIconOffsetY = 108
+    [int]$ChatIconOffsetY = 108,
+
+    [Parameter(Mandatory=$false)]
+    [int]$ResultIndex = 1
 )
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -43,14 +47,11 @@ public class Win32 {
     public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint cButtons, uint dwExtraInfo);
     [DllImport("user32.dll")]
     public static extern bool GetCursorPos(out POINT lpPoint);
-    [DllImport("user32.dll")]
-    public static extern bool ScreenToClient(IntPtr hWnd, ref POINT lpPoint);
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT { public int Left, Top, Right, Bottom; }
     public struct POINT { public int X, Y; }
     public const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
     public const uint MOUSEEVENTF_LEFTUP = 0x0004;
-    public const uint MOUSEEVENTF_MOVE = 0x0001;
 }
 '@
 
@@ -151,6 +152,10 @@ Sleep-Jitter 1200
 [System.Windows.Forms.SendKeys]::SendWait("^{v}")
 Sleep-Jitter 1500
 
+for ($i = 1; $i -lt $ResultIndex; $i++) {
+    [System.Windows.Forms.SendKeys]::SendWait("{DOWN}")
+    Sleep-Jitter 150
+}
 [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
 Sleep-Jitter 1200
 
@@ -194,8 +199,16 @@ else {
         exit 1
     }
     Move-MouseSubtle
-    Type-Human $Message
-    Sleep-Jitter 800
+    $hasNonAscii = ($Message.ToCharArray() | Where-Object { [int]$_ -gt 127 }).Length -gt 0
+    if ($hasNonAscii) {
+        [System.Windows.Forms.Clipboard]::SetText($Message)
+        Sleep-Jitter 300
+        [System.Windows.Forms.SendKeys]::SendWait("^{v}")
+        Sleep-Jitter 800
+    } else {
+        Type-Human $Message
+        Sleep-Jitter 800
+    }
     [System.Windows.Forms.SendKeys]::SendWait("~")
     Write-Output "Message sent to $Recipient successfully"
 }

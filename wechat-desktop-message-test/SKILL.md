@@ -54,7 +54,11 @@ description: "Uses desktop WeChat to send messages (text, images, files) via loc
 
 ### 调用方式
 
+默认选搜索结果的第1项。如果目标不在首位，用 `-ResultIndex` 指定序号：
 
+```powershell
+powershell -STA -NoProfile -ExecutionPolicy Bypass -File "<Skill目录>\send_wechat.ps1" -Recipient "tudou" -Message "蚊子太多" -ResultIndex 2
+```
 
 #### 发送文本消息
 
@@ -84,12 +88,12 @@ powershell -STA -NoProfile -ExecutionPolicy Bypass -File "<Skill目录>\send_wec
 
 - 使用 `Get-Process -Name "Weixin"` 通过进程名精确定位微信（新版微信主进程名为 `Weixin`，旧版为 `WeChat`，优先匹配 `Weixin` 并回退到 `WeChat`），不要通过窗口标题匹配（窗口标题会随聊天对象变化，容易找错窗口）。
 - 过滤进程时使用 `ForEach-Object { if ($_.MainWindowHandle -ne 0) { $_ } }` 而非 `Where-Object`，确保在 TRAE 的 PowerShell 安全包装下也能正常工作。
-- **文本发送**：使用 `Type-Human` 函数逐字模拟键盘输入，每个字符间隔 40-180ms（标点符号 100-250ms），单词间停顿 200-600ms，模拟真人打字节奏。最后按 `~`（Enter）发送。所有操作间隔加入 ±40% 的随机抖动。
+- **文本发送**：自动检测文本是否含中文。纯英文/数字 → `Type-Human` 逐字模拟键盘输入（40-180ms/字，单词间 200-600ms）；含中文 → 剪贴板粘贴方式（因为 `SendKeys` 不支持逐字发送中文），带随机抖动。最后按 `~`（Enter）发送。
 - **图片发送**：使用 `[System.Drawing.Image]::FromFile($path)` 加载图片，再用 `[System.Windows.Forms.Clipboard]::SetImage($img)` 写入剪贴板，粘贴后微信弹出预览，按 Enter 发送。
 - **文件发送**：使用 `[System.Windows.Forms.Clipboard]::SetFileDropList($list)` 将文件路径写入剪贴板的文件拖放列表，粘贴后微信弹出文件发送对话框，按 Enter 发送。
 - 所有 `Start-Sleep` 通过 `Sleep-Jitter` 函数加上 ±40% 随机抖动，避免固定间隔被风控。
 - 发送文本前调用 `Move-MouseSubtle` 将鼠标微移 ±8px，模拟真人发送前的小动作。
-- 搜索联系人：用 SendKeys 发送 `^{f}`（Ctrl+F）打开搜索，粘贴收件人名称，等待搜索结果后按 Enter 进入会话。
+- 搜索联系人：用 SendKeys 发送 `^{f}`（Ctrl+F）打开搜索，粘贴收件人名称，等待搜索结果后按 `ResultIndex` 按向下键（`{DOWN}`）定位，最后 `{ENTER}` 进入会话。
 
 ## 失败处理
 
